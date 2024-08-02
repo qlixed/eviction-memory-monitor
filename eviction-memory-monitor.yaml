@@ -1,0 +1,82 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  annotations:
+  name: eviction-memory-monitor
+  namespace: eviction-memory-monitor
+spec:
+  selector:
+    matchLabels:
+      name: eviction-memory-monitor
+  template:
+    metadata:
+      labels:
+        name: eviction-memory-monitor
+    spec:
+      containers:
+      - command:
+        - /scripts/entrypoint.sh
+        env:
+        - name: SLEEPTIME
+          value: 30s
+        image: registry.redhat.io/rhel8/support-tools
+        imagePullPolicy: IfNotPresent
+        name: eviction-memory-monitor
+        resources: {}
+        securityContext:
+          privileged: true
+          runAsUser: 0
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+        volumeMounts:
+        - name: cgroupv1-script
+          mountPath: /scripts/memory-available.sh
+          subPath: memory-available.sh
+        - name: cgroupv2-script
+          mountPath: /scripts/memory-available-cgroupv2.sh
+          subPath: memory-available-cgroupv2.sh
+        - name: entrypoint-script
+          mountPath: /scripts/entrypoint.sh
+          subPath: entrypoint.sh
+      dnsPolicy: ClusterFirst
+      hostNetwork: true
+      nodeSelector:
+        eviction-memory-monitor: "true"
+      restartPolicy: Always
+      schedulerName: default-scheduler
+      securityContext: {}
+      serviceAccount: default
+      serviceAccountName: default
+      terminationGracePeriodSeconds: 10
+      tolerations:
+      - key: node-role.kubernetes.io/master
+        operator: Exists
+      - key: node-role.kubernetes.io/infra
+        operator: Exists
+      volumes:
+      - name: cgroupv1-script
+        configMap:
+          defaultMode: 504
+          name: cgroupv1
+          items:
+          - key: memory-available.sh
+            path: memory-available.sh
+      - name: cgroupv2-script
+        configMap:
+          defaultMode: 504
+          name: cgroupv2
+          items:
+          - key: memory-available-cgroupv2.sh
+            path: memory-available-cgroupv2.sh
+      - name: entrypoint-script
+        configMap:
+          defaultMode: 504
+          name: entrypoint
+          items:
+          - key: entrypoint.sh
+            path: entrypoint.sh
+  updateStrategy:
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
+    type: RollingUpdate
